@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 import cv2
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "8001050042:AAGnZSZ_nW6PTLRCOOtttd4uO--J68WosXg"
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -28,3 +28,4 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
 app.run_polling()
+
