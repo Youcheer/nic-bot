@@ -6,13 +6,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { GoogleGenAI, Type } from "@google/genai";
-import { 
-  Upload, 
-  FileText, 
-  Download, 
-  Copy, 
-  Check, 
-  RefreshCw, 
+import {
+  Upload,
+  FileText,
+  Download,
+  Copy,
+  Check,
+  RefreshCw,
   Image as ImageIcon,
   AlertCircle,
   Loader2
@@ -55,7 +55,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -93,7 +93,7 @@ export default function App() {
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      
+
       const prompt = `
         Analyze the provided image(s). They could be a National ID Card, a Gainful Occupation Permit (GOP), or a Passport.
         
@@ -246,10 +246,10 @@ export default function App() {
 
   const downloadFiles = () => {
     if (!details) return;
-    
+
     const name = cleanName(details.name);
     const acc = accountNumber || 'XXXXXXX';
-    const renameBase = details.type === 'GOP' 
+    const renameBase = details.type === 'GOP'
       ? `${name} ${acc} - GOP Expiry date ${details.expiryDate}`
       : `${name} ${acc} - NIC Expiry date ${details.expiryDate}`;
 
@@ -295,7 +295,7 @@ export default function App() {
           >
             Enterprise Edition
           </motion.div>
-          <motion.h1 
+          <motion.h1
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl md:text-5xl font-extrabold tracking-tight text-[#050505] mb-3"
@@ -318,7 +318,7 @@ export default function App() {
                   Account Configuration
                 </label>
               </div>
-              <input 
+              <input
                 type="text"
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
@@ -355,7 +355,7 @@ export default function App() {
                 {images.map((img, idx) => (
                   <div key={idx} className="relative aspect-[1.6/1] rounded-2xl overflow-hidden border border-black/5 bg-white shadow-sm">
                     <img src={img} className="w-full h-full object-contain" />
-                    <button 
+                    <button
                       onClick={() => removeImage(idx)}
                       className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
                     >
@@ -367,7 +367,7 @@ export default function App() {
             )}
 
             {images.length > 0 && !details && !isProcessing && (
-              <button 
+              <button
                 onClick={processImages}
                 className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
               >
@@ -385,13 +385,23 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {error && (
+              <div className="bg-red-50 text-red-600 rounded-3xl p-6 shadow-sm border border-red-100 flex items-start gap-4">
+                <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-bold">Error Processing</h3>
+                  <p className="text-xs mt-1 text-red-500">{error}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Column: Output */}
           <div className="lg:col-span-7 space-y-6">
             <AnimatePresence mode="wait">
               {details ? (
-                <motion.div 
+                <motion.div
                   key="results"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -405,7 +415,7 @@ export default function App() {
                           <div className="w-1 h-4 bg-emerald-500 rounded-full" />
                           <h2 className="text-xs font-bold uppercase tracking-widest text-[#65676B]">Straightened Output</h2>
                         </div>
-                        <button 
+                        <button
                           onClick={downloadFiles}
                           className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors"
                         >
@@ -422,7 +432,7 @@ export default function App() {
                   <div className="space-y-4">
                     {details.type === 'GOP' && (
                       <div className="flex justify-end">
-                        <button 
+                        <button
                           onClick={downloadFiles}
                           className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-sm"
                         >
@@ -431,7 +441,7 @@ export default function App() {
                       </div>
                     )}
                     {outputFields.map((field, idx) => (
-                      <motion.div 
+                      <motion.div
                         key={idx}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -443,7 +453,7 @@ export default function App() {
                             <div className="w-1 h-3 bg-blue-600/30 rounded-full" />
                             <span className="text-[10px] font-bold uppercase tracking-widest text-[#65676B]">{field.label}</span>
                           </div>
-                          <button 
+                          <button
                             onClick={() => copyLine(field.value, idx)}
                             className={cn(
                               "p-2.5 rounded-xl transition-all",
