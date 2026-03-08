@@ -169,7 +169,13 @@ export default function App() {
 
     } catch (err: any) {
       console.error("Error processing images:", err);
-      setError(err?.message || "Failed to process document. Please ensure images are clear.");
+      let errorText = err?.message || String(err);
+      if (typeof err === "object") {
+        try {
+          errorText += " | " + JSON.stringify(err);
+        } catch (e) { }
+      }
+      setError("Error: " + errorText);
     } finally {
       setIsProcessing(false);
     }
