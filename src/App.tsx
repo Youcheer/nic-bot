@@ -202,14 +202,24 @@ export default function App() {
       if (widthRaw < 0) { widthRaw = -widthRaw; xRaw -= widthRaw; }
       if (heightRaw < 0) { heightRaw = -heightRaw; yRaw -= heightRaw; }
 
-      // Add padding (12%) on all sides so the full ID card edge is included
-      const padX = widthRaw * 0.12;
-      const padY = heightRaw * 0.12;
+      // Check if the bounding box already covers the majority of the image (e.g. >70% area)
+      const boxArea = widthRaw * heightRaw;
+      const imgArea = img.width * img.height;
 
-      const x = Math.max(0, xRaw - padX);
-      const y = Math.max(0, yRaw - padY);
-      const width = Math.min(img.width - x, widthRaw + padX * 2);
-      const height = Math.min(img.height - y, heightRaw + padY * 2);
+      let x = 0;
+      let y = 0;
+      let width = img.width;
+      let height = img.height;
+
+      // If document is smaller than 70% of the image, we crop with a large generous 20% margin
+      if (boxArea < imgArea * 0.70) {
+        const padX = widthRaw * 0.20;
+        const padY = heightRaw * 0.20;
+        x = Math.max(0, xRaw - padX);
+        y = Math.max(0, yRaw - padY);
+        width = Math.min(img.width - x, widthRaw + padX * 2);
+        height = Math.min(img.height - y, heightRaw + padY * 2);
+      }
 
       let cw = width;
       let ch = height;
