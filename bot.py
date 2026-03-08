@@ -65,6 +65,25 @@ def extract_details(text):
         name="Unknown"
 
     return nic,expiry,name
+def auto_crop(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+    
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if contours:
+        c = max(contours, key=cv2.contourArea)
+        if cv2.contourArea(c) > 5000:
+            x, y, w, h = cv2.boundingRect(c)
+            padding = 20
+            startX = max(0, x - padding)
+            startY = max(0, y - padding)
+            endX = min(image.shape[1], x + w + padding)
+            endY = min(image.shape[0], y + h + padding)
+            return image[startY:endY, startX:endX]
+    return image
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,9 +95,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         img=cv2.imread("nic.jpg")
 
-        h,w,_=img.shape
-
-        crop=img[int(h*0.15):int(h*0.45), int(w*0.25):int(w*0.75)]
+        crop=auto_crop(img)
 
         cv2.imwrite("cropped.jpg",crop)
 
