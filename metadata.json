@@ -1,0 +1,5 @@
+{
+  "name": "NIC Scanner & Cropper",
+  "description": "Upload an ID card to automatically crop it, extract details, and generate formatted verification text.",
+  "requestFramePermissions": []
+}
