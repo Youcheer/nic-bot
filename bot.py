@@ -33,18 +33,18 @@ def extract_details_with_ai(image_path):
         You are an expert OCR and data extraction system.
         Analyze this image carefully. Your task is to find the Seychelles National Identity Card details.
         
-        1. NIC Number (Usually contains hyphens, look for 123-4567-8-901 format).
-        2. Date of Expiry ("Valid until"). Read the text explicitly and output EXACTLY like DD.MM.YYYY e.g. "30.04.2029".
-        3. Full Name (Combine First Name and Surname).
+        1. NIC Number (It usually contains hyphens, follow the exact pattern you see on the card, e.g. 999-0310-1-1-75 or similar).
+        2. Date of Expiry (Next to "Valid until". Read the date explicitly and format it EXACTLY like DD.MM.YYYY e.g., if it says "23 December 2034", output "23.12.2034").
+        3. Full Name (Combine all name parts under the word "Name", e.g., "HARRISSON Rolly, Roger").
         
-        If the image is blurry, the text is too small, or you cannot read a field, output exactly the word "Blurry" instead of "Unknown".
-        
+        If the text is readable but you are unsure, just try your best. DO NOT USE "Blurry" unless the image is literally unreadable.
+
         Provide ONLY a valid JSON object.
         {
             "nic": "extracted nic or Blurry",
             "expiry": "extracted expiry or Blurry",
             "name": "extracted full name or Blurry",
-            "reason": "Explain briefly if you successfully read it or why you couldn't (e.g., 'Text too blurry' or 'Clear')."
+            "reason": "Explain briefly if you successfully read it or why you couldn't (e.g., 'Read successfully')."
         }
         """
         
@@ -70,7 +70,7 @@ def extract_details_with_ai(image_path):
         data = json.loads(result_text)
         nic = data.get("nic", "Unknown")
         expiry = data.get("expiry", "Unknown")
-        name = data.get("name", "Unknown")
+        name = data.get("name", "Unknown").replace(",", " ").replace("  ", " ").strip()
         reason = data.get("reason", "No reason provided")
         
         return nic, expiry, name, reason
@@ -84,9 +84,12 @@ async def process_image(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         await file.download_to_drive(image_path)
 
         nic, expiry, name, reason = extract_details_with_ai(image_path)
+        
+        # Caption එකක් දාලා තිබුණොත් ඒක Account Number විදිහට ගන්නවා. නැත්නම් default එකක් දානවා.
+        account_number = update.message.caption if update.message.caption else "ACCOUNT_NUMBER"
 
         # AI එකට කියවන්න අමාරු වුණොත් (Blurry/Unknown නම්) Telegram එකට පැහැදිලි message එකක් යවන්න
-        if "Blurry" in nic or "Blurry" in name or "Blurry" in expiry or "Unknown" in nic:
+        if "Blurry" in nic or "Unknown" in nic:
             message = f"⚠️ Image is not clear enough for AI to read.\n\n" \
                       f"*Results:*\nNIC: {nic}\nName: {name}\nExpiry: {expiry}\n\n" \
                       f"🤖 *AI Reason:* {reason}\n\n" \
@@ -98,7 +101,8 @@ async def process_image(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         if nic in ["Blocked by AI Safety", "Parse Error", "API Error"]:
             message = f"AI Error processing image.\nReason: {nic}\nDetails: {reason}"
         else:
-            message = f"Verified by Suraj - NIC Expiry {expiry}\nNIC Number - {nic}\nRename: {name} ACCOUNT_NUMBER - NIC Expiry date {expiry}"
+            # message එකේ ACCOUNT_NUMBER කියන තැනට Caption එකෙන් ආපු අංකය දානවා 
+            message = f"Verified by Suraj - NIC Expiry {expiry}\nNIC Number - {nic}\nRename: {name} {account_number} - NIC Expiry date {expiry}"
 
         await update.message.reply_photo(photo=open(image_path, "rb"))
         await update.message.reply_text(message)
