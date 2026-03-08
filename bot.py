@@ -8,9 +8,18 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 import PIL.Image
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
+# .env ගොනුවේ ඇති රහස්‍ය තොරතුරු ලබා ගැනීමට
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # ඔයාගේ Telegram Bot Token එක සහ අලුත් Gemini API Key එක
-TOKEN = "8001050042:AAGnZSZ_nW6PTLRCOOtttd4uO--J68WosXg"
-GEMINI_API_KEY = "AIzaSyBMIXtjQHXrwM26xot7hY7OeR40bLv_Ps4"
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not TOKEN or not GEMINI_API_KEY:
+    print("Error: Please set TELEGRAM_TOKEN and GEMINI_API_KEY in the .env file")
+    exit(1)
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
