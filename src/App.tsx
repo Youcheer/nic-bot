@@ -167,9 +167,9 @@ export default function App() {
         setCroppedImage(null);
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error processing images:", err);
-      setError("Failed to process document. Please ensure images are clear.");
+      setError(err?.message || "Failed to process document. Please ensure images are clear.");
     } finally {
       setIsProcessing(false);
     }
