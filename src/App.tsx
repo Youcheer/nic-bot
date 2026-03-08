@@ -202,9 +202,9 @@ export default function App() {
       if (widthRaw < 0) { widthRaw = -widthRaw; xRaw -= widthRaw; }
       if (heightRaw < 0) { heightRaw = -heightRaw; yRaw -= heightRaw; }
 
-      // Add padding (6%) on all sides so the full ID card edge is included
-      const padX = widthRaw * 0.06;
-      const padY = heightRaw * 0.06;
+      // Add padding (12%) on all sides so the full ID card edge is included
+      const padX = widthRaw * 0.12;
+      const padY = heightRaw * 0.12;
 
       const x = Math.max(0, xRaw - padX);
       const y = Math.max(0, yRaw - padY);
