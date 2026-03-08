@@ -108,7 +108,8 @@ export default function App() {
         
         General Rules:
         - Format all dates as DD.MM.YYYY.
-        - Rotation angle should straighten the primary document (ID or GOP).
+        - Bounding Box MUST tightly wrap the document. Use normalized coordinates scaled between 0 and 1000 (ymin, xmin, ymax, xmax).
+        - Rotation angle should straighten the document using ONLY 0, 90, 180, or 270 degrees.
         - Return the data in JSON format.
       `;
 
@@ -190,19 +191,33 @@ export default function App() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const x = (box.xmin / 1000) * img.width;
-      const y = (box.ymin / 1000) * img.height;
-      const width = ((box.xmax - box.xmin) / 1000) * img.width;
-      const height = ((box.ymax - box.ymin) / 1000) * img.height;
+      const scale = (box.xmax <= 1 && box.ymax <= 1) ? 1 : 1000;
 
-      canvas.width = width;
-      canvas.height = height;
+      let x = (box.xmin / scale) * img.width;
+      let y = (box.ymin / scale) * img.height;
+      let width = ((box.xmax - box.xmin) / scale) * img.width;
+      let height = ((box.ymax - box.ymin) / scale) * img.height;
+
+      // Sometimes bounding box can be slightly inverted or weird
+      if (width < 0) { width = -width; x -= width; }
+      if (height < 0) { height = -height; y -= height; }
+
+      let cw = width;
+      let ch = height;
+      const isSideways = Math.abs(angleDegrees) === 90 || Math.abs(angleDegrees) === 270;
+      if (isSideways) {
+        cw = height;
+        ch = width;
+      }
+
+      canvas.width = cw;
+      canvas.height = ch;
 
       ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, cw, ch);
 
       ctx.save();
-      ctx.translate(width / 2, height / 2);
+      ctx.translate(cw / 2, ch / 2);
       ctx.rotate((angleDegrees * Math.PI) / 180);
       ctx.drawImage(
         img,
