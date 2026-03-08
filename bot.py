@@ -19,20 +19,23 @@ def extract_details_with_ai(image_path):
     try:
         img = PIL.Image.open(image_path)
         
-        # AI එකට දෙන ප්‍රොම්ප්ට් එක - මඳක් වෙනස් කර වඩාත් පැහැදිලි උපදෙස් ලබාදීම
+        # AI එකට දෙන ප්‍රොම්ප්ට් එක
         prompt = """
         You are an expert OCR and data extraction system.
-        Analyze this document image (this is a Seychelles National Identity Card). Look completely carefully at the entire image.
-        Extract the following information perfectly:
-        1. NIC Number (This typically contains hyphens, look for patterns like 123-4567-8-901 or similar formats).
-        2. Date of Expiry (Usually written with "Valid until". Read the date explicitly and format it EXACTLY like DD.MM.YYYY e.g., if it says "30 April 2029", output "30.04.2029").
-        3. Full Name (Combine First Name and Surname properly. Pay attention to both First names and Surname fields near the top).
+        Analyze this image carefully. Your task is to find the Seychelles National Identity Card details.
         
-        CRITICAL: Provide ONLY a valid JSON object. No extra text, no markdown tags.
+        1. NIC Number (Usually contains hyphens, look for 123-4567-8-901 format).
+        2. Date of Expiry ("Valid until"). Read the text explicitly and output EXACTLY like DD.MM.YYYY e.g. "30.04.2029".
+        3. Full Name (Combine First Name and Surname).
+        
+        If the image is blurry, the text is too small, or you cannot read a field, output exactly the word "Blurry" instead of "Unknown".
+        
+        Provide ONLY a valid JSON object.
         {
-            "nic": "extracted nic",
-            "expiry": "extracted expiry",
-            "name": "extracted full name"
+            "nic": "extracted nic or Blurry",
+            "expiry": "extracted expiry or Blurry",
+            "name": "extracted full name or Blurry",
+            "reason": "Explain briefly if you successfully read it or why you couldn't (e.g., 'Text too blurry' or 'Clear')."
         }
         """
         
@@ -48,20 +51,9 @@ def extract_details_with_ai(image_path):
         try:
             result_text = response.text.strip()
         except ValueError:
-            return "Blocked by AI Safety", "Unknown", "Unknown"
+            return "Blocked by AI Safety", "Unknown", "Unknown", "AI Block"
             
-        # JSON parsing සඳහා වඩා හොඳ ක්‍රමයක්
-        if result_text.startswith('```json'):
-            result_text = result_text[7:]
-        elif result_text.startswith('```'):
-            result_text = result_text[3:]
-            
-        if result_text.endswith('```'):
-            result_text = result_text[:-3]
-            
-        result_text = result_text.strip()
-        
-        # regex හරහාත් උත්සහ කිරීම (AI එක වෙනත් දේවල් type කරොත්)
+        # JSON parsing
         match = re.search(r'\{.*\}', result_text, re.DOTALL)
         if match:
              result_text = match.group(0)
@@ -70,43 +62,58 @@ def extract_details_with_ai(image_path):
         nic = data.get("nic", "Unknown")
         expiry = data.get("expiry", "Unknown")
         name = data.get("name", "Unknown")
+        reason = data.get("reason", "No reason provided")
         
-        return nic, expiry, name
+        return nic, expiry, name, reason
             
     except Exception as e:
         print(f"AI Error: {e}")
-        return "API Error", "Unknown", "Unknown"
+        return "API Error", "Unknown", "Unknown", str(e)
 
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def process_image(update: Update, context: ContextTypes.DEFAULT_TYPE, file, image_path="nic.jpg"):
     try:
-        photo = update.message.photo[-1]
-        file = await photo.get_file()
-        image_path = "nic.jpg"
-        
         await file.download_to_drive(image_path)
 
-        # OpenCV Cropping සම්පූර්ණයෙන්ම ඉවත් කර කෙලින්ම Full Image එක AI එකට යැවීම!
-        # හේතුව: සමහර වෙලාවට ෆොටෝ එකේ background එක වටේට සුදු පාට ගොඩක් තිබුණාම OpenCV confusion එකකට එනවා
-        # Gemini 1.5 Flash ආකෘතියට සම්පූර්ණ පින්තූරය තේරුම් ගැනීමේ හැකියාව ඉහළයි. Crop කිරීම අත්‍යාවශ්‍ය නොවේ.
-        
-        # Original Image එක කෙලින්ම AI එකට යැවීම
-        nic, expiry, name = extract_details_with_ai(image_path)
+        nic, expiry, name, reason = extract_details_with_ai(image_path)
 
-        # AI එක fail වුණොත් ඒකෙ Error message එක යැවීම
+        # AI එකට කියවන්න අමාරු වුණොත් (Blurry/Unknown නම්) Telegram එකට පැහැදිලි message එකක් යවන්න
+        if "Blurry" in nic or "Blurry" in name or "Blurry" in expiry or "Unknown" in nic:
+            message = f"⚠️ Image is not clear enough for AI to read.\n\n" \
+                      f"*Results:*\nNIC: {nic}\nName: {name}\nExpiry: {expiry}\n\n" \
+                      f"🤖 *AI Reason:* {reason}\n\n" \
+                      f"💡 *Advice:* Telegram reduces photo quality. Please send the image as a **Document/File**, or take a closer photo directly of the ID card! (ID කාඩ් එක ලං කරලා පැහැදිලි ෆොටෝ එකක් ගහන්න)"
+            
+            await update.message.reply_photo(photo=open(image_path, "rb"), caption=message, parse_mode='Markdown')
+            return
+
         if nic in ["Blocked by AI Safety", "Parse Error", "API Error"]:
-            message = f"AI Failed to read image.\nReason: {nic}\nPlease check if the image is clear."
+            message = f"AI Error processing image.\nReason: {nic}\nDetails: {reason}"
         else:
-             message = f"Verified by Suraj - NIC Expiry {expiry}\nNIC Number - {nic}\nRename: {name} ACCOUNT_NUMBER - NIC Expiry date {expiry}"
+            message = f"Verified by Suraj - NIC Expiry {expiry}\nNIC Number - {nic}\nRename: {name} ACCOUNT_NUMBER - NIC Expiry date {expiry}"
 
-        # දැන් user ට යවන්නේත් Original ෆොටෝ එකමයි (කිසිම කට් කිරීමක් නෑ)
         await update.message.reply_photo(photo=open(image_path, "rb"))
         await update.message.reply_text(message)
         
     except Exception as e:
         await update.message.reply_text(f"Error processing image: {e}")
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo = update.message.photo[-1]
+    file = await photo.get_file()
+    await process_image(update, context, file)
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    document = update.message.document
+    if document.mime_type and document.mime_type.startswith('image/'):
+        file = await document.get_file()
+        await process_image(update, context, file)
+
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
+    
+    # Photo විදිහට එවන ඒවාටයි, Document විදිහට එවන ඒවාටයි දෙකටම වැඩ කරන්න හදලා තියෙන්නේ
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    print("Bot running exclusively on Gemini AI without local OpenCV cropping...")
+    app.add_handler(MessageHandler(filters.Document.IMAGE, handle_document))
+    
+    print("Bot running! Supports normal Photos AND High-Quality Documents...")
     app.run_polling()
