@@ -13,59 +13,22 @@ TOKEN = "8001050042:AAGnZSZ_nW6PTLRCOOtttd4uO--J68WosXg"
 GEMINI_API_KEY = "AIzaSyBMIXtjQHXrwM26xot7hY7OeR40bLv_Ps4"
 
 genai.configure(api_key=GEMINI_API_KEY)
-# We use gemini-1.5-flash for fast and accurate image details
 model = genai.GenerativeModel('gemini-1.5-flash')
-
-def auto_crop(image):
-    try:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        # පින්තූරයේ තියෙන අකුරු, barcode සහ photo එක මොන පැහැයකින් තිබුණත් හොයාගන්න Adaptive Threshold පාවිච්චි කිරීම
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 5)
-        
-        # ලඟින් තියෙන අකුරු ටික එකට එකතු කරන්න ඩයිලෙට් කිරීම
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 20))
-        dilated = cv2.dilate(thresh, kernel, iterations=2)
-        
-        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if contours:
-            # කුඩා ඩොට් වගේ දේවල් අයින් කරලා ලොකු කෑලි ටික (ID එකේ අකුරු, පින්තූරය) විතරක් තෝරගැනීම
-            boxes = [cv2.boundingRect(c) for c in contours if cv2.contourArea(c) > 500]
-            if boxes:
-                # ඔක්කොම අකුරු සහ පින්තූර කවර් වෙන විදිහට එක ලොකු Bounding Box එකක් හැදීම
-                min_x = min([x for x, y, w, h in boxes])
-                min_y = min([y for x, y, w, h in boxes])
-                max_x = max([x + w for x, y, w, h in boxes])
-                max_y = max([y + h for x, y, w, h in boxes])
-                
-                # අවටින් පොඩි පරතරයක් (padding) තැබීම (අකුරු කැපෙන්නේ නැති වෙන්න)
-                padding = 30
-                startX = max(0, min_x - padding)
-                startY = max(0, min_y - padding)
-                endX = min(image.shape[1], max_x + padding)
-                endY = min(image.shape[0], max_y + padding)
-                
-                return image[startY:endY, startX:endX]
-    except Exception as e:
-        print(f"Crop Error: {e}")
-        
-    return image
 
 def extract_details_with_ai(image_path):
     try:
         img = PIL.Image.open(image_path)
         
-        # AI එකට දෙන ප්‍රොම්ප්ට් එක
+        # AI එකට දෙන ප්‍රොම්ප්ට් එක - මඳක් වෙනස් කර වඩාත් පැහැදිලි උපදෙස් ලබාදීම
         prompt = """
-        Analyze this document image (Seychelles National Identity Card). Look very carefully at the text and numbers.
+        You are an expert OCR and data extraction system.
+        Analyze this document image (this is a Seychelles National Identity Card). Look completely carefully at the entire image.
         Extract the following information perfectly:
-        1. NIC Number (This typically contains hyphens, look for patterns like XXX-XXXX-X-XXX).
-        2. Date of Expiry (Usually says "Valid until". Please format it EXACTLY like DD.MM.YYYY e.g., if it says 30 April 2029, output 30.04.2029).
-        3. Full Name (Combine First Name and Surname properly. It might be in uppercase).
+        1. NIC Number (This typically contains hyphens, look for patterns like 123-4567-8-901 or similar formats).
+        2. Date of Expiry (Usually written with "Valid until". Read the date explicitly and format it EXACTLY like DD.MM.YYYY e.g., if it says "30 April 2029", output "30.04.2029").
+        3. Full Name (Combine First Name and Surname properly. Pay attention to both First names and Surname fields near the top).
         
-        If a specific field is unreadable, use "Unknown" for that field.
-        
-        Return ONLY a JSON object in this format:
+        CRITICAL: Provide ONLY a valid JSON object. No extra text, no markdown tags.
         {
             "nic": "extracted nic",
             "expiry": "extracted expiry",
@@ -73,7 +36,6 @@ def extract_details_with_ai(image_path):
         }
         """
         
-        # Security Blocks අයින් කිරීම (ID Cards හඳුනා නොගන්නා එක නැති කිරීමට)
         safety_settings = {
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
@@ -84,21 +46,32 @@ def extract_details_with_ai(image_path):
         response = model.generate_content([prompt, img], safety_settings=safety_settings)
         
         try:
-            result_text = response.text
+            result_text = response.text.strip()
         except ValueError:
-            # AI එක photo එක ප්‍රතික්ෂේප කරොත්
             return "Blocked by AI Safety", "Unknown", "Unknown"
             
-        # Regex පාවිච්චි කරලා JSON කොටස විතරක් තෝරගැනීම (AI එක වෙනත් දේවල් type කරලා තිබුණොත් අයින් කරන්න)
+        # JSON parsing සඳහා වඩා හොඳ ක්‍රමයක්
+        if result_text.startswith('```json'):
+            result_text = result_text[7:]
+        elif result_text.startswith('```'):
+            result_text = result_text[3:]
+            
+        if result_text.endswith('```'):
+            result_text = result_text[:-3]
+            
+        result_text = result_text.strip()
+        
+        # regex හරහාත් උත්සහ කිරීම (AI එක වෙනත් දේවල් type කරොත්)
         match = re.search(r'\{.*\}', result_text, re.DOTALL)
         if match:
-            data = json.loads(match.group(0))
-            nic = data.get("nic", "Unknown")
-            expiry = data.get("expiry", "Unknown")
-            name = data.get("name", "Unknown")
-            return nic, expiry, name
-        else:
-            return "Parse Error", "Unknown", "Unknown"
+             result_text = match.group(0)
+
+        data = json.loads(result_text)
+        nic = data.get("nic", "Unknown")
+        expiry = data.get("expiry", "Unknown")
+        name = data.get("name", "Unknown")
+        
+        return nic, expiry, name
             
     except Exception as e:
         print(f"AI Error: {e}")
@@ -112,24 +85,21 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await file.download_to_drive(image_path)
 
-        # අලුත් Crop function එකෙන් Photo එක Crop කිරීම
-        img = cv2.imread(image_path)
-        if img is not None:
-            crop = auto_crop(img)
-            cropped_path = "cropped.jpg"
-            cv2.imwrite(cropped_path, crop)
-        else:
-             cropped_path = image_path
-
-        nic, expiry, name = extract_details_with_ai(cropped_path)
+        # OpenCV Cropping සම්පූර්ණයෙන්ම ඉවත් කර කෙලින්ම Full Image එක AI එකට යැවීම!
+        # හේතුව: සමහර වෙලාවට ෆොටෝ එකේ background එක වටේට සුදු පාට ගොඩක් තිබුණාම OpenCV confusion එකකට එනවා
+        # Gemini 1.5 Flash ආකෘතියට සම්පූර්ණ පින්තූරය තේරුම් ගැනීමේ හැකියාව ඉහළයි. Crop කිරීම අත්‍යාවශ්‍ය නොවේ.
+        
+        # Original Image එක කෙලින්ම AI එකට යැවීම
+        nic, expiry, name = extract_details_with_ai(image_path)
 
         # AI එක fail වුණොත් ඒකෙ Error message එක යැවීම
         if nic in ["Blocked by AI Safety", "Parse Error", "API Error"]:
             message = f"AI Failed to read image.\nReason: {nic}\nPlease check if the image is clear."
         else:
-            message = f"Verified by Suraj - NIC Expiry {expiry}\nNIC Number - {nic}\nRename: {name} ACCOUNT_NUMBER - NIC Expiry date {expiry}"
+             message = f"Verified by Suraj - NIC Expiry {expiry}\nNIC Number - {nic}\nRename: {name} ACCOUNT_NUMBER - NIC Expiry date {expiry}"
 
-        await update.message.reply_photo(photo=open(cropped_path, "rb"))
+        # දැන් user ට යවන්නේත් Original ෆොටෝ එකමයි (කිසිම කට් කිරීමක් නෑ)
+        await update.message.reply_photo(photo=open(image_path, "rb"))
         await update.message.reply_text(message)
         
     except Exception as e:
@@ -138,5 +108,5 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    print("Bot running with Advanced Crop and Gemini AI...")
+    print("Bot running exclusively on Gemini AI without local OpenCV cropping...")
     app.run_polling()
