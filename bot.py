@@ -68,30 +68,32 @@ def extract_details(text):
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        photo=update.message.photo[-1]
+        file=await photo.get_file()
 
-    photo=update.message.photo[-1]
-    file=await photo.get_file()
+        await file.download_to_drive("nic.jpg")
 
-    await file.download_to_drive("nic.jpg")
+        img=cv2.imread("nic.jpg")
 
-    img=cv2.imread("nic.jpg")
+        h,w,_=img.shape
 
-    h,w,_=img.shape
+        crop=img[int(h*0.15):int(h*0.45), int(w*0.25):int(w*0.75)]
 
-    crop=img[int(h*0.15):int(h*0.45), int(w*0.25):int(w*0.75)]
+        cv2.imwrite("cropped.jpg",crop)
 
-    cv2.imwrite("cropped.jpg",crop)
+        text=read_text(crop)
 
-    text=read_text(crop)
+        nic,expiry,name=extract_details(text)
 
-    nic,expiry,name=extract_details(text)
-
-    message=f"""Verified by Suraj - NIC Expiry {expiry}
+        message=f"""Verified by Suraj - NIC Expiry {expiry}
 NIC Number - {nic}
 Rename: {name} ACCOUNT_NUMBER - NIC Expiry date {expiry}"""
 
-    await update.message.reply_photo(photo=open("cropped.jpg","rb"))
-    await update.message.reply_text(message)
+        await update.message.reply_photo(photo=open("cropped.jpg","rb"))
+        await update.message.reply_text(message)
+    except Exception as e:
+        await update.message.reply_text(f"Error processing image: {e}")
 
 
 app=ApplicationBuilder().token(TOKEN).build()
