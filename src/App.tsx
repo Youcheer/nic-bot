@@ -193,14 +193,23 @@ export default function App() {
 
       const scale = (box.xmax <= 1 && box.ymax <= 1) ? 1 : 1000;
 
-      let x = (box.xmin / scale) * img.width;
-      let y = (box.ymin / scale) * img.height;
-      let width = ((box.xmax - box.xmin) / scale) * img.width;
-      let height = ((box.ymax - box.ymin) / scale) * img.height;
+      let xRaw = (box.xmin / scale) * img.width;
+      let yRaw = (box.ymin / scale) * img.height;
+      let widthRaw = ((box.xmax - box.xmin) / scale) * img.width;
+      let heightRaw = ((box.ymax - box.ymin) / scale) * img.height;
 
       // Sometimes bounding box can be slightly inverted or weird
-      if (width < 0) { width = -width; x -= width; }
-      if (height < 0) { height = -height; y -= height; }
+      if (widthRaw < 0) { widthRaw = -widthRaw; xRaw -= widthRaw; }
+      if (heightRaw < 0) { heightRaw = -heightRaw; yRaw -= heightRaw; }
+
+      // Add padding (6%) on all sides so the full ID card edge is included
+      const padX = widthRaw * 0.06;
+      const padY = heightRaw * 0.06;
+
+      const x = Math.max(0, xRaw - padX);
+      const y = Math.max(0, yRaw - padY);
+      const width = Math.min(img.width - x, widthRaw + padX * 2);
+      const height = Math.min(img.height - y, heightRaw + padY * 2);
 
       let cw = width;
       let ch = height;
